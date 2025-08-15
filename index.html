@@ -104,6 +104,7 @@
   let lapses = 0;
   let firstStimulus = true;
   let results = [];
+  let sessionStartLocal = '';
 
   function placeDot(){
     dot.style.display = 'block';
@@ -130,6 +131,8 @@
     if (!id) { alert('Please enter a Participant ID to begin.'); pidInput.focus(); return; }
     participantId = id;
 
+    sessionStartLocal = new Date().toLocaleString();
+
     running = true;
     results = [];
     trial = 0; falseStarts = 0; lapses = 0; firstStimulus = true;
@@ -153,7 +156,9 @@
   async function sendToWebhook(){
     const payload = {
       participant_id: participantId,
+      start_time_local: sessionStartLocal,
       local_time: new Date().toLocaleString(),
+      start_time_local: sessionStartLocal,
       summary: { trials: trial, false_starts: falseStarts, lapses },
       rows: results
     };
