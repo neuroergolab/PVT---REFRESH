@@ -151,9 +151,6 @@
     results.push({ event: 'response', trial, rt, lapse: lapseFlag, false_start: 0, ts });
     hideDot();
     if (performance.now() < endTime) scheduleNextDot();
-  });
-    hideDot();
-    if (performance.now() < endTime) scheduleNextDot();
   }
 
   function onBackgroundTap(e){
@@ -183,7 +180,7 @@
   startBtn.addEventListener('click', start);
   dot.addEventListener('pointerdown', recordResponse);
   document.addEventListener('pointerdown', onBackgroundTap, { passive: false, capture: true });
-  dot.addEventListener('touchstart', (e)=>{ e.preventDefault(); recordResponse(); }, {passive:false});
+   recordResponse(); }, {passive:false});
 })();
 </script>
 </body>
