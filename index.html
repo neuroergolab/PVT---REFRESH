@@ -23,31 +23,49 @@
       z-index: 9999;
     }
     button { margin: 10px; padding: 10px 20px; font-size: 16px; }
-    #instructions { max-width: 500px; margin-bottom: 20px; color: #cbd5e1; }
+    #instructions { max-width: 560px; margin-bottom: 16px; color: #cbd5e1; }
+    #gate { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    #pidWrap { display: flex; gap: 8px; align-items: center; }
+    label { color: #cbd5e1; }
+    input[type="text"]{ padding: 8px 10px; border-radius: 10px; border: 1px solid #334155; background: #0b1220; color: #e2e8f0; }
+    #thanks { display: none; margin-top: 20px; font-size: 18px; color: #e2e8f0; }
   </style>
 </head>
 <body>
   <div id="instructions">
     <h2>Instructions</h2>
-    <p>When you press Start, a red dot will appear in the center of the screen at random intervals. Your task is to tap or click the dot as quickly as possible each time it appears. The task will run for a short time and your reaction times will be saved automatically.</p>
+    <p>Enter your Participant ID, then press Start. A red dot will appear in the center at random intervals. Tap or click it as quickly as possible each time it appears. The task runs briefly and your reaction times will be saved automatically.</p>
   </div>
-  <button id="startBtn">Start PVT (Debug)</button>
-  <div id="dot" class="dot"></div>
+  <div id="gate">
+    <div id="pidWrap">
+      <label for="participantId">Participant ID:</label>
+      <input id="participantId" type="text" placeholder="e.g., P001" autocomplete="off" />
+    </div>
+    <button id="startBtn">Start PVT (Debug)</button>
+  </div>
+
+  <div id="dot" class="dot" aria-hidden="true"></div>
+  <div id="thanks">Thank you for completing the task.</div>
 
 <script>
 (function(){
   const dot = document.getElementById('dot');
   const startBtn = document.getElementById('startBtn');
   const instructions = document.getElementById('instructions');
+  const pidInput = document.getElementById('participantId');
+  const gate = document.getElementById('gate');
+  const thanks = document.getElementById('thanks');
 
   const TASK_DURATION_MS = 10000; // 10 seconds for debugging
   const MIN_DELAY_MS = 500;
   const MAX_DELAY_MS = 1500;
 
   let running = false;
+  let completed = false; // lock after one run
   let appearAt = 0;
   let nextDotTimeout = null;
   let endTime = 0;
+  let participantId = '';
   let results = [];
 
   function placeDot(){
@@ -69,10 +87,16 @@
   }
 
   function start(){
-    if (running) return;
+    if (running || completed) return; // do not allow reruns
+    const id = (pidInput.value || '').trim();
+    if (!id) { alert('Please enter a Participant ID to begin.'); pidInput.focus(); return; }
+    participantId = id;
+
     running = true;
     results = [];
-    startBtn.style.display = 'none';
+
+    // hide UI
+    gate.style.display = 'none';
     instructions.style.display = 'none';
 
     const startAt = performance.now();
@@ -89,10 +113,13 @@
 
   function finish(){
     running = false;
+    completed = true; // lock task
     clearTimeout(nextDotTimeout);
     hideDot();
-    startBtn.style.display = 'block';
-    instructions.style.display = 'block';
+
+    // show thank you and keep controls hidden
+    thanks.style.display = 'block';
+
     if (results.length > 0) {
       saveCSV();
     }
@@ -108,13 +135,14 @@
   }
 
   function saveCSV(){
-    const header = ['trial','rt_ms'];
-    const rows = results.map((r,i) => [i+1, r.rt]);
+    const header = ['participant_id','trial','rt_ms'];
+    const rows = results.map((r,i) => [participantId, i+1, r.rt]);
     const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = `pvt_${new Date().toISOString().replaceAll(':','-')}.csv`;
+    const safeId = participantId.replace(/[^a-zA-Z0-9_-]/g,'_') || 'PID';
+    a.href = url; a.download = `pvt_${safeId}_${new Date().toISOString().replaceAll(':','-')}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   }
