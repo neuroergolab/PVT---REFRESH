@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>5‑Minute PVT</title>
+  <title>PVT Debug</title>
   <style>
     html, body { height: 100%; margin: 0; }
     body {
@@ -24,7 +24,7 @@
   </style>
 </head>
 <body>
-  <button id="startBtn">Start 5‑min PVT</button>
+  <button id="startBtn">Start PVT (Debug)</button>
   <div id="dot" class="dot"></div>
 
 <script>
@@ -32,7 +32,7 @@
   const dot = document.getElementById('dot');
   const startBtn = document.getElementById('startBtn');
 
-  const TASK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  const TASK_DURATION_MS = 5000; // 5 seconds for debugging
   const MIN_DELAY_MS = 2000;
   const MAX_DELAY_MS = 10000;
 
