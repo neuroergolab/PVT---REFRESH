@@ -63,6 +63,7 @@
   const MIN_DELAY_MS = 2000;
   const MAX_DELAY_MS = 10000;
   const LAPSE_THRESHOLD_MS = 500; // lapse if RT > 500 ms
+  const FIRST_DELAY_MS = 2000; // first stimulus fixed at 2 s
 
   // Set human-readable task length in instructions
   const taskLenEl = document.getElementById('taskLen');
@@ -80,6 +81,7 @@
   let trial = 0;
   let falseStarts = 0;
   let lapses = 0;
+  let firstStimulus = true;
   let results = [];
 
   function placeDot(){
@@ -93,11 +95,13 @@
   }
 
   function scheduleNextDot(){
-    const delay = Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS) + MIN_DELAY_MS;
+    const delay = firstStimulus ? FIRST_DELAY_MS : (Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS) + MIN_DELAY_MS);
+    firstStimulus = false;
     nextDotTimeout = setTimeout(() => {
       if (!running) return;
       placeDot();
     }, delay);
+  }, delay);
   }
 
   function start(){
@@ -116,6 +120,7 @@
 
     const startAt = performance.now();
     endTime = startAt + TASK_DURATION_MS;
+    firstStimulus = true;
     scheduleNextDot();
 
     const timerId = setInterval(() => {
