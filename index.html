@@ -5,140 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>5‑Minute PVT</title>
   <style>
-    :root {
-      --bg: #0f172a;
-      --fg: #e2e8f0;
-      --muted: #94a3b8;
-      --accent: #ef4444; /* red dot */
-      --card: #111827;
-    }
-    html, body {
-      margin: 0; height: 100%; background: var(--bg); color: var(--fg);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-    }
-    .wrap {
-      display: grid; place-items: center; height: 100%; width: 100%;
-      grid-template-rows: auto 1fr auto; gap: 16px; padding: 20px;
-    }
-    .controls, .footer {
-      display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: center;
-    }
-    button {
-      background: #1f2937; color: var(--fg); border: 1px solid #334155; padding: 10px 14px;
-      border-radius: 12px; cursor: pointer; font-size: 16px;
-    }
-    button:disabled { opacity: .6; cursor: not-allowed; }
-    .card {
-      background: var(--card); width: min(900px, 96vw); border: 1px solid #1f2937; border-radius: 16px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.25);
-    }
-    .hud { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
-    .hud div { color: var(--muted); }
-
-    .stage {
-      position: relative; height: min(520px, 65vh); display: grid; place-items: center;
-      border: 1px dashed #334155; border-radius: 16px; overflow: hidden;
-      touch-action: manipulation; user-select: none;
+    body {
+      margin: 0; height: 100%; background: #0f172a; color: #e2e8f0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      display: flex; justify-content: center; align-items: center; flex-direction: column;
     }
     .dot {
-      position: absolute; width: 50px; height: 50px; border-radius: 50%; background: var(--accent);
-      transform: translate(-50%, -50%); display: none;
-      box-shadow: 0 0 0 6px rgba(239,68,68,.2), 0 0 50px rgba(239,68,68,.35);
+      width: 50px; height: 50px; border-radius: 50%; background: #ef4444;
+      display: none;
     }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
-    th, td { border-bottom: 1px solid #243244; padding: 6px 8px; text-align: left; }
-    th { color: var(--muted); font-weight: 600; }
-    .status { text-align: center; color: var(--muted); min-height: 1.4em; }
-    .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #0b1220; border: 1px solid #223048; }
+    button { margin: 10px; padding: 10px 20px; font-size: 16px; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="controls">
-      <button id="startBtn">Start 5‑min PVT</button>
-      <button id="stopBtn" disabled>Stop</button>
-      <button id="fsBtn">Fullscreen</button>
-      <button id="downloadBtn" disabled>Download CSV</button>
-      <span class="badge">Click or tap anywhere inside the frame</span>
-    </div>
-
-    <div class="card">
-      <div class="hud">
-        <div>Time left: <strong id="timeLeft">05:00</strong></div>
-        <div>Trials: <strong id="trialCount">0</strong></div>
-        <div>Mean RT: <strong id="meanRT">—</strong></div>
-        <div>False starts: <strong id="falseStarts">0</strong></div>
-        <div>Lapses (&gt;500 ms): <strong id="lapses">0</strong></div>
-      </div>
-
-      <div id="stage" class="stage" aria-label="PVT Area">
-        <div id="dot" class="dot" aria-hidden="true"></div>
-      </div>
-
-      <div class="status" id="status">Press Start. Wait until the red dot appears then respond as fast as possible.</div>
-
-      <table id="resultsTable" aria-label="Results">
-        <thead>
-          <tr><th>#</th><th>Appear time</th><th>Response time (ms)</th><th>X</th><th>Y</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div class="footer">
-      <span class="badge">Tip: For touch devices use Safari or Chrome in fullscreen for the best experience</span>
-    </div>
-  </div>
+  <button id="startBtn">Start 5‑min PVT</button>
+  <div id="dot" class="dot"></div>
+  <button id="downloadBtn" disabled>Download CSV</button>
 
 <script>
 (function(){
-  const stage = document.getElementById('stage');
   const dot = document.getElementById('dot');
   const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const fsBtn = document.getElementById('fsBtn');
   const downloadBtn = document.getElementById('downloadBtn');
-  const timeLeftEl = document.getElementById('timeLeft');
-  const trialCountEl = document.getElementById('trialCount');
-  const meanRTEl = document.getElementById('meanRT');
-  const falseStartsEl = document.getElementById('falseStarts');
-  const lapsesEl = document.getElementById('lapses');
-  const statusEl = document.getElementById('status');
-  const tbody = document.querySelector('#resultsTable tbody');
 
-  // Settings
   const TASK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-  const MIN_DELAY_MS = 2000; // minimum wait before dot appears
-  const MAX_DELAY_MS = 10000; // maximum wait before dot appears
-  const LAPSE_THRESHOLD_MS = 500; // count as lapse if RT > 500 ms
+  const MIN_DELAY_MS = 2000;
+  const MAX_DELAY_MS = 10000;
 
   let running = false;
   let appearAt = 0;
-  let timerId = null;
   let nextDotTimeout = null;
   let endTime = 0;
-  let trial = 0;
-  let falseStarts = 0;
-  let lapses = 0;
-  let rts = [];
-  let results = []; // {trial, appearISO, rt, x, y}
-
-  function msToClock(ms){
-    const t = Math.max(0, Math.ceil(ms/1000));
-    const m = String(Math.floor(t/60)).padStart(2,'0');
-    const s = String(t%60).padStart(2,'0');
-    return `${m}:${s}`;
-  }
+  let results = [];
 
   function placeDot(){
-    const rect = stage.getBoundingClientRect();
-    const margin = 40; // keep inside frame
-    const x = Math.random() * (rect.width - 2*margin) + margin;
-    const y = Math.random() * (rect.height - 2*margin) + margin;
-    dot.style.left = `${x}px`;
-    dot.style.top = `${y}px`;
     dot.style.display = 'block';
     appearAt = performance.now();
-    statusEl.textContent = 'Respond now';
   }
 
   function hideDot(){
@@ -157,86 +59,42 @@
   function start(){
     if (running) return;
     running = true;
-    trial = 0; falseStarts = 0; lapses = 0; rts = []; results = [];
-    tbody.innerHTML = '';
-    updateHud();
+    results = [];
     startBtn.disabled = true;
-    stopBtn.disabled = false;
     downloadBtn.disabled = true;
-    statusEl.textContent = 'Get ready';
 
     const startAt = performance.now();
     endTime = startAt + TASK_DURATION_MS;
     scheduleNextDot();
 
-    timerId = setInterval(() => {
-      const remaining = endTime - performance.now();
-      timeLeftEl.textContent = msToClock(remaining);
-      if (remaining <= 0) finish();
+    const timerId = setInterval(() => {
+      if (performance.now() >= endTime) {
+        clearInterval(timerId);
+        finish();
+      }
     }, 250);
   }
 
   function finish(){
     running = false;
-    clearInterval(timerId); timerId = null;
-    clearTimeout(nextDotTimeout); nextDotTimeout = null;
+    clearTimeout(nextDotTimeout);
     hideDot();
     startBtn.disabled = false;
-    stopBtn.disabled = true;
     downloadBtn.disabled = results.length === 0;
-    statusEl.textContent = 'Session complete. You can download your data.';
   }
 
-  function stop(){ finish(); }
-
-  function updateHud(){
-    trialCountEl.textContent = String(trial);
-    falseStartsEl.textContent = String(falseStarts);
-    lapsesEl.textContent = String(lapses);
-    meanRTEl.textContent = rts.length ? Math.round(rts.reduce((a,b)=>a+b,0)/rts.length) + ' ms' : '—';
-  }
-
-  function recordResponse(clientX, clientY){
+  function recordResponse(){
     if (!running) return;
-    if (!appearAt){
-      // click before dot visible
-      falseStarts++;
-      statusEl.textContent = 'Too soon';
-      updateHud();
-      return;
-    }
+    if (!appearAt) return; // ignore clicks when dot not visible
     const rt = Math.round(performance.now() - appearAt);
-    if (rt > LAPSE_THRESHOLD_MS) lapses++;
-    trial++;
-
-    const row = document.createElement('tr');
-    const appearISO = new Date().toISOString();
-    row.innerHTML = `<td>${trial}</td><td>${appearISO}</td><td>${rt}</td><td>${Math.round(clientX)}</td><td>${Math.round(clientY)}</td>`;
-    tbody.appendChild(row);
-
-    rts.push(rt);
-    results.push({ trial, appearISO, rt, x: Math.round(clientX), y: Math.round(clientY) });
-
-    updateHud();
+    results.push({ rt });
     hideDot();
-
-    // schedule next if time remains
-    const remaining = endTime - performance.now();
-    if (remaining > MIN_DELAY_MS) scheduleNextDot();
-    else finish();
-  }
-
-  function onPointer(e){
-    if (!running) return;
-    // prevent double fire on touch
-    if (e.type === 'touchstart') e.preventDefault();
-    const pt = e.touches ? e.touches[0] : e;
-    recordResponse(pt.clientX, pt.clientY);
+    if (performance.now() < endTime) scheduleNextDot();
   }
 
   function toCSV(){
-    const header = ['trial','appear_time_iso','rt_ms','x','y'];
-    const rows = results.map(r => [r.trial, r.appearISO, r.rt, r.x, r.y]);
+    const header = ['trial','rt_ms'];
+    const rows = results.map((r,i) => [i+1, r.rt]);
     const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
@@ -246,23 +104,10 @@
     URL.revokeObjectURL(url);
   }
 
-  // Events
   startBtn.addEventListener('click', start);
-  stopBtn.addEventListener('click', stop);
+  dot.addEventListener('click', recordResponse);
+  dot.addEventListener('touchstart', recordResponse);
   downloadBtn.addEventListener('click', toCSV);
-  fsBtn.addEventListener('click', async () => {
-    try { await (document.documentElement.requestFullscreen?.() || stage.requestFullscreen?.()); } catch(e) {}
-  });
-
-  stage.addEventListener('mousedown', onPointer);
-  stage.addEventListener('touchstart', onPointer, {passive:false});
-
-  // Keyboard space bar also responds
-  document.addEventListener('keydown', (e) => {
-    if (!running) return;
-    if (e.code === 'Space') recordResponse(innerWidth/2, innerHeight/2);
-  });
-
 })();
 </script>
 </body>
