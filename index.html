@@ -36,7 +36,7 @@
     <h2>Instructions</h2>
     <p>A red dot will appear in the center at random intervals.</p>
     <p>Tap or click it as quickly as possible each time it appears.</p>
-    <p>Continue the task until it ends. The task will last for <span id="taskLen">10 seconds</span>.</p>
+    <p>Continue the task until it ends. The task will last for <span id="taskLen">5 minutes</span>.</p>
     <p>Enter your Participant ID, then press Start.</p>
   </div>
   <div id="gate">
@@ -63,15 +63,15 @@
   const thanks = document.getElementById('thanks');
 
   // === PVT settings (debug) ===
-  const TASK_DURATION_MS = 10000; // 10 seconds debug
-  const MIN_DELAY_MS = 500;
-  const MAX_DELAY_MS = 1500;
+  const TASK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  const MIN_DELAY_MS = 2000;
+  const MAX_DELAY_MS = 10000;
   const LAPSE_THRESHOLD_MS = 500; // lapse if RT > 500 ms
   const FIRST_DELAY_MS = 2000; // first stimulus fixed at 2 s
 
   // Human-readable task length
   const taskLenEl = document.getElementById('taskLen');
-  if (taskLenEl) taskLenEl.textContent = '10 seconds';
+  if (taskLenEl) taskLenEl.textContent = '5 minutes';
 
   // === EmailJS config ===
   // We will send a JSON attachment via Variable Attachment to avoid CSV issues.
@@ -158,8 +158,17 @@
       participant_id: participantId,
       start_time_local: sessionStartLocal,
       local_time: new Date().toLocaleString(),
-      start_time_local: sessionStartLocal,
       summary: { trials: trial, false_starts: falseStarts, lapses },
+      rows: results
+    };
+    // Use text/plain + no-cors to avoid CORS preflight with Apps Script Web App
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+  },
       rows: results
     };
     // Use text/plain + no-cors to avoid CORS preflight with Apps Script Web App
@@ -225,7 +234,11 @@
   function buildJSON(){
     return JSON.stringify({
       participant_id: participantId,
+      start_time_local: sessionStartLocal,
       summary: { trials: trial, false_starts: falseStarts, lapses },
+      rows: results
+    }, null, 2);
+  },
       rows: results
     }, null, 2);
   }
