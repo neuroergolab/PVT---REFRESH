@@ -36,8 +36,7 @@
     <h2>Instructions</h2>
     <p>A red dot will appear in the center at random intervals.</p>
     <p>Tap or click it as quickly as possible each time it appears.</p>
-    <p> </p>
-    <p>Continue the task until it ends. The task will last for 5min.</p>
+    <p>Continue the task until it ends. The task will last for <span id="taskLen">a short time</span>.</p>
     <p>Enter your Participant ID, then press Start.</p>
   </div>
   <div id="gate">
@@ -63,6 +62,13 @@
   const TASK_DURATION_MS = 10000; // 10 seconds for debugging
   const MIN_DELAY_MS = 500;
   const MAX_DELAY_MS = 1500;
+
+  // Set human-readable task length in instructions
+  const taskLenEl = document.getElementById('taskLen');
+  if (taskLenEl) {
+    const humanDuration = (ms) => ms < 60000 ? (Math.round(ms/1000) + ' seconds') : (Math.round(ms/60000) + ' minutes');
+    taskLenEl.textContent = humanDuration(TASK_DURATION_MS);
+  }
 
   let running = false;
   let completed = false; // lock after one run
