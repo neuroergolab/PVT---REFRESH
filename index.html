@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PVT Debug</title>
+  <title>PVT Task</title>
   <style>
     html, body { height: 100%; margin: 0; }
     body {
@@ -36,7 +36,7 @@
     <h2>Instructions</h2>
     <p>A red dot will appear in the center at random intervals.</p>
     <p>Tap or click it as quickly as possible each time it appears.</p>
-    <p>Continue the task until it ends. The task will last for <span id="taskLen">a short time</span>.</p>
+    <p>Continue the task until it ends. The task will last for <span id="taskLen">10 seconds</span>.</p>
     <p>Enter your Participant ID, then press Start.</p>
   </div>
   <div id="gate">
@@ -50,6 +50,9 @@
   <div id="dot" class="dot" aria-hidden="true"></div>
   <div id="thanks">Thank you for completing the task.</div>
 
+  <!-- EmailJS SDK (client-side email) -->
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
 <script>
 (function(){
   const dot = document.getElementById('dot');
@@ -59,18 +62,27 @@
   const gate = document.getElementById('gate');
   const thanks = document.getElementById('thanks');
 
-  const TASK_DURATION_MS = 5 * 60 * 1000; // 5 minutes // 10 seconds for debugging
-  const MIN_DELAY_MS = 2000;
-  const MAX_DELAY_MS = 10000;
+  // === PVT settings (5-min standard) ===
+  const TASK_DURATION_MS = 10000; // 10 seconds (debug)
+  const MIN_DELAY_MS = 500;
+  const MAX_DELAY_MS = 1500;
   const LAPSE_THRESHOLD_MS = 500; // lapse if RT > 500 ms
   const FIRST_DELAY_MS = 2000; // first stimulus fixed at 2 s
 
-  // Set human-readable task length in instructions
+  // Human-readable task length
   const taskLenEl = document.getElementById('taskLen');
-  if (taskLenEl) {
-    const humanDuration = (ms) => ms < 60000 ? (Math.round(ms/1000) + ' seconds') : (Math.round(ms/60000) + ' minutes');
-    taskLenEl.textContent = humanDuration(TASK_DURATION_MS);
-  }
+  if (taskLenEl) taskLenEl.textContent = '10 seconds';
+
+  // === EmailJS config ===
+  // 1) Create an EmailJS account and email service (Gmail/Outlook/SMTP)
+  // 2) Create a template with variables: to_email, subject, csv_filename, csv_content
+  //    In the template's Attachments tab, add an attachment of type "Variable Attachment"
+  //    Param name: csv_content, Content type: text/csv, Filename: {{csv_filename}}
+  // 3) Fill the placeholders below with your values
+  const EMAILJS_PUBLIC_KEY = 'YOUR_PUBLIC_KEY';
+  const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';
+  const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
+  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
   let running = false;
   let completed = false; // lock after one run
@@ -101,7 +113,6 @@
       if (!running) return;
       placeDot();
     }, delay);
-  }, delay);
   }
 
   function start(){
@@ -112,7 +123,7 @@
 
     running = true;
     results = [];
-    trial = 0; falseStarts = 0; lapses = 0;
+    trial = 0; falseStarts = 0; lapses = 0; firstStimulus = true;
 
     // hide UI
     gate.style.display = 'none';
@@ -120,7 +131,6 @@
 
     const startAt = performance.now();
     endTime = startAt + TASK_DURATION_MS;
-    firstStimulus = true;
     scheduleNextDot();
 
     const timerId = setInterval(() => {
@@ -131,7 +141,7 @@
     }, 250);
   }
 
-  function finish(){
+  async function finish(){
     running = false;
     completed = true; // lock task
     clearTimeout(nextDotTimeout);
@@ -141,7 +151,13 @@
     thanks.style.display = 'block';
 
     if (results.length > 0) {
-      saveCSV();
+      try {
+        await sendEmailWithCSV();
+      } catch (err) {
+        // Fallback: download locally if email fails
+        console.error('Email failed, saving locally instead', err);
+        saveCSVLocally();
+      }
     }
   }
 
@@ -169,17 +185,55 @@
     }
   }
 
-  function saveCSV(){
+  function buildCSV(){
     const header = ['participant_id','event','trial','rt_ms','lapse','false_start','timestamp_iso'];
     const rows = results.map(r => [participantId, r.event, r.trial, r.rt, r.lapse, r.false_start, r.ts]);
-    const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+    return [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+  }
+
+  function saveCSVLocally(){
+    const csv = buildCSV();
     const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const safeId = participantId.replace(/[^a-zA-Z0-9_-]/g,'_') || 'PID';
-    a.href = url; a.download = `pvt_${safeId}_${new Date().toISOString().replaceAll(':','-')}.csv`;
+    const localStamp = new Date().toLocaleString().replace(/[\\/:]/g,'-').replace(/\s+/g,'_');
+    a.href = url; a.download = `pvt_${safeId}_${localStamp}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function blobToBase64(blob){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result; // data:text/csv;base64,....
+        const base64 = String(dataUrl).split(',')[1] || '';
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function sendEmailWithCSV(){
+    const csv = buildCSV();
+    const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+    const base64 = await blobToBase64(blob);
+
+    const safeId = participantId.replace(/[^a-zA-Z0-9_-]/g,'_') || 'PID';
+    const localStamp = new Date().toLocaleString(); // human local time for subject
+    const subject = `PVT_${safeId}_${localStamp}`;
+    const filename = `pvt_${safeId}_${localStamp.replace(/[\\/:]/g,'-').replace(/\s+/g,'_')}.csv`;
+
+    const params = {
+      to_email: 'shanghavi@wisc.edu',
+      subject,
+      csv_filename: filename,
+      csv_content: base64
+    };
+
+    return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
   }
 
   startBtn.addEventListener('click', start);
