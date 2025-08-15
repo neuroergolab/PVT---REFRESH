@@ -44,7 +44,7 @@
       <label for="participantId">Participant ID:</label>
       <input id="participantId" type="text" placeholder="e.g., P001" autocomplete="off" />
     </div>
-    <button id="startBtn">Start PVT (Debug)</button>
+    <button id="startBtn">Start PVT</button>
   </div>
 
   <div id="dot" class="dot" aria-hidden="true"></div>
@@ -59,9 +59,9 @@
   const gate = document.getElementById('gate');
   const thanks = document.getElementById('thanks');
 
-  const TASK_DURATION_MS = 10000; // 10 seconds for debugging
-  const MIN_DELAY_MS = 500;
-  const MAX_DELAY_MS = 1500;
+  const TASK_DURATION_MS = 5 * 60 * 1000; // 5 minutes // 10 seconds for debugging
+  const MIN_DELAY_MS = 2000;
+  const MAX_DELAY_MS = 10000;
   const LAPSE_THRESHOLD_MS = 500; // lapse if RT > 500 ms
 
   // Set human-readable task length in instructions
