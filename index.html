@@ -88,6 +88,11 @@
   const EMAIL_ENABLED = EMAILJS_PUBLIC_KEY && !EMAILJS_PUBLIC_KEY.includes('YOUR_') && EMAILJS_SERVICE_ID && !EMAILJS_SERVICE_ID.includes('YOUR_') && EMAILJS_TEMPLATE_ID && !EMAILJS_TEMPLATE_ID.includes('YOUR_');
   try { emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch(e) { console.error('EmailJS init failed', e); }
 
+  // === Google Apps Script Webhook (preferred) ===
+  // Paste your Web App URL below. Example: https://script.google.com/macros/s/AKfycbx.../exec
+  const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwUEkpoENX5wXiMZtngDdB23BJKA14Ng04goBmDLuzx03SwXL7pJZr_x2u7dNQpL-w3/exec';
+  const WEBHOOK_ENABLED = WEBHOOK_URL && WEBHOOK_URL.startsWith('http');
+
   let running = false;
   let completed = false; // lock after one run
   let appearAt = 0;
@@ -145,6 +150,22 @@
     }, 250);
   }
 
+  async function sendToWebhook(){
+    const payload = {
+      participant_id: participantId,
+      local_time: new Date().toLocaleString(),
+      summary: { trials: trial, false_starts: falseStarts, lapses },
+      rows: results
+    };
+    // Use text/plain + no-cors to avoid CORS preflight with Apps Script Web App
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+  }
+
   async function finish(){
     running = false;
     completed = true; // lock task
@@ -155,16 +176,18 @@
     thanks.style.display = 'block';
 
     if (results.length > 0) {
-      if (!EMAIL_ENABLED) {
-        alert('Email not configured. Results will be saved locally as JSON.');
-        saveJSONLocally();
-        return;
-      }
       try {
-        await sendEmailWithAttachment();
+        if (WEBHOOK_ENABLED) {
+          await sendToWebhook();
+        } else if (EMAIL_ENABLED) {
+          await sendEmailWithAttachment();
+        } else {
+          alert('No upload configured. Results will be saved locally as JSON.');
+          saveJSONLocally();
+        }
       } catch (err) {
-        console.error('Email failed, saving locally instead', err);
-        alert('Email failed. Results will be saved locally as JSON. See console for details.');
+        console.error('Upload failed, saving locally instead', err);
+        alert('Upload failed. Results will be saved locally as JSON.');
         saveJSONLocally();
       }
     }
