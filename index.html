@@ -19,6 +19,7 @@
       width: 50px; height: 50px; border-radius: 50%; background: #ef4444;
       box-shadow: 0 0 0 6px rgba(239,68,68,.2), 0 0 50px rgba(239,68,68,.35);
       display: none;
+      z-index: 9999;
     }
     button { margin: 10px; padding: 10px 20px; font-size: 16px; }
   </style>
@@ -33,8 +34,8 @@
   const startBtn = document.getElementById('startBtn');
 
   const TASK_DURATION_MS = 10000; // 10 seconds for debugging
-  const MIN_DELAY_MS = 2000;
-  const MAX_DELAY_MS = 4000; // shortened so dot always appears quickly for debug
+  const MIN_DELAY_MS = 500;
+  const MAX_DELAY_MS = 1500;
 
   let running = false;
   let appearAt = 0;
@@ -64,7 +65,7 @@
     if (running) return;
     running = true;
     results = [];
-    startBtn.disabled = true;
+    startBtn.style.display = 'none'; // hide button completely after start
 
     const startAt = performance.now();
     endTime = startAt + TASK_DURATION_MS;
@@ -82,7 +83,7 @@
     running = false;
     clearTimeout(nextDotTimeout);
     hideDot();
-    startBtn.disabled = false;
+    startBtn.style.display = 'block';
     if (results.length > 0) {
       saveCSV();
     }
