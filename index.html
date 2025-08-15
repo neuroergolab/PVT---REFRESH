@@ -12,6 +12,7 @@
       display: flex; justify-content: center; align-items: center; flex-direction: column;
       -webkit-tap-highlight-color: transparent;
       user-select: none; touch-action: manipulation;
+      text-align: center;
     }
     .dot {
       position: fixed;
@@ -22,9 +23,14 @@
       z-index: 9999;
     }
     button { margin: 10px; padding: 10px 20px; font-size: 16px; }
+    #instructions { max-width: 500px; margin-bottom: 20px; color: #cbd5e1; }
   </style>
 </head>
 <body>
+  <div id="instructions">
+    <h2>Instructions</h2>
+    <p>When you press Start, a red dot will appear in the center of the screen at random intervals. Your task is to tap or click the dot as quickly as possible each time it appears. The task will run for a short time and your reaction times will be saved automatically.</p>
+  </div>
   <button id="startBtn">Start PVT (Debug)</button>
   <div id="dot" class="dot"></div>
 
@@ -32,6 +38,7 @@
 (function(){
   const dot = document.getElementById('dot');
   const startBtn = document.getElementById('startBtn');
+  const instructions = document.getElementById('instructions');
 
   const TASK_DURATION_MS = 10000; // 10 seconds for debugging
   const MIN_DELAY_MS = 500;
@@ -65,7 +72,8 @@
     if (running) return;
     running = true;
     results = [];
-    startBtn.style.display = 'none'; // hide button completely after start
+    startBtn.style.display = 'none';
+    instructions.style.display = 'none';
 
     const startAt = performance.now();
     endTime = startAt + TASK_DURATION_MS;
@@ -84,6 +92,7 @@
     clearTimeout(nextDotTimeout);
     hideDot();
     startBtn.style.display = 'block';
+    instructions.style.display = 'block';
     if (results.length > 0) {
       saveCSV();
     }
