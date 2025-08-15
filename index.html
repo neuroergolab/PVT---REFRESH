@@ -168,16 +168,6 @@
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     });
-  },
-      rows: results
-    };
-    // Use text/plain + no-cors to avoid CORS preflight with Apps Script Web App
-    await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    });
   }
 
   async function finish(){
@@ -236,9 +226,6 @@
       participant_id: participantId,
       start_time_local: sessionStartLocal,
       summary: { trials: trial, false_starts: falseStarts, lapses },
-      rows: results
-    }, null, 2);
-  },
       rows: results
     }, null, 2);
   }
