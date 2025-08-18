@@ -67,6 +67,8 @@
   const MIN_DELAY_MS = 2000;
   const MAX_DELAY_MS = 10000;
   const LAPSE_THRESHOLD_MS = 500; // lapse if RT > 500 ms
+  const FALSE_START_THRESHOLD_MS = 100; // false start if RT < 100 ms
+  const TIMEOUT_MS = 10000; // auto-timeout after 10 s
   const FIRST_DELAY_MS = 2000; // first stimulus fixed at 2 s
 
   // Human-readable task length
@@ -104,16 +106,22 @@
   let lapses = 0;
   let firstStimulus = true;
   let results = [];
+  let dotTimeoutId = null;
   let sessionStartLocal = '';
 
   function placeDot(){
     dot.style.display = 'block';
     appearAt = performance.now();
+    // start per-trial timeout
+    clearTimeout(dotTimeoutId);
+    dotTimeoutId = setTimeout(onStimulusTimeout, TIMEOUT_MS);
   }
 
   function hideDot(){
     dot.style.display = 'none';
     appearAt = 0;
+    clearTimeout(dotTimeoutId);
+    dotTimeoutId = null;
   }
 
   function scheduleNextDot(){
@@ -201,23 +209,49 @@
     if (!running) return;
     if (!appearAt) return; // ignore if stimulus not visible
     const rt = Math.round(performance.now() - appearAt);
-    const lapseFlag = rt > LAPSE_THRESHOLD_MS ? 1 : 0;
-    if (lapseFlag) lapses++;
-    trial++;
     const ts = new Date().toISOString();
-    results.push({ event: 'response', trial, rt, lapse: lapseFlag, false_start: 0, ts });
+
+    if (rt < FALSE_START_THRESHOLD_MS) {
+      // too fast after onset -> false start
+      falseStarts++;
+      trial++;
+      results.push({ event: 'false_start', trial, rt, lapse: 0, false_start: 1, ts });
+    } else {
+      const lapseFlag = rt > LAPSE_THRESHOLD_MS ? 1 : 0;
+      if (lapseFlag) lapses++;
+      trial++;
+      results.push({ event: 'response', trial, rt, lapse: lapseFlag, false_start: 0, ts });
+    }
+
+    hideDot();
+    if (performance.now() < endTime) scheduleNextDot();
+  });
     hideDot();
     if (performance.now() < endTime) scheduleNextDot();
   }
 
   function onBackgroundTap(e){
     if (!running) return;
-    // If dot is not visible, any tap/click is a false start
+    // If dot is not visible, any tap/click is a false start (anticipatory)
     if (!appearAt){
       e.preventDefault();
       falseStarts++;
       const ts = new Date().toISOString();
       results.push({ event: 'false_start', trial: '', rt: '', lapse: '', false_start: 1, ts });
+    }
+  }
+
+  function onStimulusTimeout(){
+    // No response within TIMEOUT_MS after stimulus onset
+    if (!running || !appearAt) return;
+    const ts = new Date().toISOString();
+    trial++;
+    lapses++;
+    const rt = TIMEOUT_MS; // treat as 10s RT per spec
+    results.push({ event: 'timeout', trial, rt, lapse: 1, false_start: 0, ts });
+    hideDot();
+    if (performance.now() < endTime) scheduleNextDot();
+  });
     }
   }
 
