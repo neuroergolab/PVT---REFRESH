@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>PVT Task</title>
+  <title>PVT Task — 5 Minute Version</title>
   <style>
     html, body { height: 100%; margin: 0; }
     body {
@@ -50,9 +50,6 @@
   <div id="dot" class="dot" aria-hidden="true"></div>
   <div id="thanks">Thank you for completing the task.</div>
 
-  <!-- EmailJS SDK (client-side email) -->
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-
 <script>
 (function(){
   const dot = document.getElementById('dot');
@@ -62,38 +59,20 @@
   const gate = document.getElementById('gate');
   const thanks = document.getElementById('thanks');
 
-  // === PVT settings (debug) ===
-  const TASK_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-  const MIN_DELAY_MS = 2000;
-  const MAX_DELAY_MS = 10000;
-  const LAPSE_THRESHOLD_MS = 500; // lapse if RT > 500 ms
-  const FALSE_START_THRESHOLD_MS = 100; // false start if RT < 100 ms
-  const TIMEOUT_MS = 10000; // auto-timeout after 10 s
-  const FIRST_DELAY_MS = 2000; // first stimulus fixed at 2 s
+  // === PVT settings — 5-Minute (standard) ===
+  const TASK_DURATION_MS = 5 * 60 * 1000;   // 5 minutes
+  const MIN_DELAY_MS = 2000;                // 2 s
+  const MAX_DELAY_MS = 10000;               // 10 s
+  const LAPSE_THRESHOLD_MS = 500;           // lapse if RT >= 500 ms
+  const FALSE_START_THRESHOLD_MS = 100;     // false start if RT < 100 ms after onset
+  const TIMEOUT_MS = 10000;                 // auto-timeout after 10 s (counts as lapse)
+  const FIRST_DELAY_MS = 2000;              // first stimulus fixed at 2 s
+  const VARIANT = '5min';                   // label for email subject via GAS
 
-  // Human-readable task length
-  const taskLenEl = document.getElementById('taskLen');
-  if (taskLenEl) taskLenEl.textContent = '5 minutes';
-
-  // === EmailJS config ===
-  // We will send a JSON attachment via Variable Attachment to avoid CSV issues.
-  // In EmailJS template settings:
-  //  - Add variables: to_email, subject, file_filename, file_content
-  //  - Add an Attachment of type "Variable Attachment"
-  //      Param name: file_content
-  //      Content type: application/json
-  //      Filename: {{file_filename}}
-  //  - In the template, set To = {{to_email}}, Subject = {{subject}}
-  const EMAILJS_PUBLIC_KEY = 'YOUR_PUBLIC_KEY';
-  const EMAILJS_SERVICE_ID = 'YOUR_SERVICE_ID';
-  const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
-  const EMAIL_ENABLED = EMAILJS_PUBLIC_KEY && !EMAILJS_PUBLIC_KEY.includes('YOUR_') && EMAILJS_SERVICE_ID && !EMAILJS_SERVICE_ID.includes('YOUR_') && EMAILJS_TEMPLATE_ID && !EMAILJS_TEMPLATE_ID.includes('YOUR_');
-  try { emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY }); } catch(e) { console.error('EmailJS init failed', e); }
-
-  // === Google Apps Script Webhook (preferred) ===
-  // Paste your Web App URL below. Example: https://script.google.com/macros/s/AKfycbx.../exec
+  // === Google Apps Script Webhook ===
   const WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwUEkpoENX5wXiMZtngDdB23BJKA14Ng04goBmDLuzx03SwXL7pJZr_x2u7dNQpL-w3/exec';
   const WEBHOOK_ENABLED = WEBHOOK_URL && WEBHOOK_URL.startsWith('http');
+  const DOC_POINTER_OPTS = { passive: false, capture: true }; // reuse for add/remove
 
   let running = false;
   let completed = false; // lock after one run
@@ -112,7 +91,6 @@
   function placeDot(){
     dot.style.display = 'block';
     appearAt = performance.now();
-    // start per-trial timeout
     clearTimeout(dotTimeoutId);
     dotTimeoutId = setTimeout(onStimulusTimeout, TIMEOUT_MS);
   }
@@ -125,12 +103,11 @@
   }
 
   function scheduleNextDot(){
-    const delay = firstStimulus ? FIRST_DELAY_MS : (Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS) + MIN_DELAY_MS);
+    const delay = (firstStimulus && FIRST_DELAY_MS != null)
+      ? FIRST_DELAY_MS
+      : (Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS) + MIN_DELAY_MS);
     firstStimulus = false;
-    nextDotTimeout = setTimeout(() => {
-      if (!running) return;
-      placeDot();
-    }, delay);
+    nextDotTimeout = setTimeout(() => { if (running) placeDot(); }, delay);
   }
 
   function start(){
@@ -138,12 +115,14 @@
     const id = (pidInput.value || '').trim();
     if (!id) { alert('Please enter a Participant ID to begin.'); pidInput.focus(); return; }
     participantId = id;
-
     sessionStartLocal = new Date().toLocaleString();
 
     running = true;
     results = [];
     trial = 0; falseStarts = 0; lapses = 0; firstStimulus = true;
+
+    // attach background false-start listener only during the task
+    document.addEventListener('pointerdown', onBackgroundTap, DOC_POINTER_OPTS);
 
     // hide UI
     gate.style.display = 'none';
@@ -154,28 +133,8 @@
     scheduleNextDot();
 
     const timerId = setInterval(() => {
-      if (performance.now() >= endTime) {
-        clearInterval(timerId);
-        finish();
-      }
+      if (performance.now() >= endTime) { clearInterval(timerId); finish(); }
     }, 250);
-  }
-
-  async function sendToWebhook(){
-    const payload = {
-      participant_id: participantId,
-      start_time_local: sessionStartLocal,
-      local_time: new Date().toLocaleString(),
-      summary: { trials: trial, false_starts: falseStarts, lapses },
-      rows: results
-    };
-    // Use text/plain + no-cors to avoid CORS preflight with Apps Script Web App
-    await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
-    });
   }
 
   async function finish(){
@@ -184,48 +143,37 @@
     clearTimeout(nextDotTimeout);
     hideDot();
 
-    // show thank you and keep controls hidden
+    // detach background listener at end
+    document.removeEventListener('pointerdown', onBackgroundTap, DOC_POINTER_OPTS);
+
     thanks.style.display = 'block';
 
     if (results.length > 0) {
-      try {
-        if (WEBHOOK_ENABLED) {
-          await sendToWebhook();
-        } else if (EMAIL_ENABLED) {
-          await sendEmailWithAttachment();
-        } else {
-          alert('No upload configured. Results will be saved locally as JSON.');
-          saveJSONLocally();
-        }
-      } catch (err) {
+      try { await sendToWebhook(); }
+      catch (err) {
         console.error('Upload failed, saving locally instead', err);
-        alert('Upload failed. Results will be saved locally as JSON.');
+        // Fallback to local save to avoid data loss
         saveJSONLocally();
       }
     }
   }
 
   function recordResponse(){
-    if (!running) return;
-    if (!appearAt) return; // ignore if stimulus not visible
+    if (!running || !appearAt) return; // ignore if stimulus not visible
     const rt = Math.round(performance.now() - appearAt);
     const ts = new Date().toISOString();
 
     if (rt < FALSE_START_THRESHOLD_MS) {
-      // too fast after onset -> false start
-      falseStarts++;
-      trial++;
+      // Too fast after onset -> false start
+      falseStarts++; trial++;
       results.push({ event: 'false_start', trial, rt, lapse: 0, false_start: 1, ts });
     } else {
-      const lapseFlag = rt > LAPSE_THRESHOLD_MS ? 1 : 0;
+      const lapseFlag = rt >= LAPSE_THRESHOLD_MS ? 1 : 0;
       if (lapseFlag) lapses++;
       trial++;
       results.push({ event: 'response', trial, rt, lapse: lapseFlag, false_start: 0, ts });
     }
 
-    hideDot();
-    if (performance.now() < endTime) scheduleNextDot();
-  });
     hideDot();
     if (performance.now() < endTime) scheduleNextDot();
   }
@@ -235,8 +183,8 @@
     // If dot is not visible, any tap/click is a false start (anticipatory)
     if (!appearAt){
       e.preventDefault();
-      falseStarts++;
       const ts = new Date().toISOString();
+      falseStarts++;
       results.push({ event: 'false_start', trial: '', rt: '', lapse: '', false_start: 1, ts });
     }
   }
@@ -245,18 +193,16 @@
     // No response within TIMEOUT_MS after stimulus onset
     if (!running || !appearAt) return;
     const ts = new Date().toISOString();
-    trial++;
-    lapses++;
-    const rt = TIMEOUT_MS; // treat as 10s RT per spec
+    trial++; lapses++;
+    const rt = TIMEOUT_MS; // treat as 10 s RT per spec
     results.push({ event: 'timeout', trial, rt, lapse: 1, false_start: 0, ts });
     hideDot();
     if (performance.now() < endTime) scheduleNextDot();
-  });
-    }
   }
 
   function buildJSON(){
     return JSON.stringify({
+      variant: VARIANT,
       participant_id: participantId,
       start_time_local: sessionStartLocal,
       summary: { trials: trial, false_starts: falseStarts, lapses },
@@ -276,43 +222,28 @@
     URL.revokeObjectURL(url);
   }
 
-  function blobToBase64(blob){
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const dataUrl = reader.result; // data:...;base64,....
-        const base64 = String(dataUrl).split(',')[1] || '';
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
+  async function sendToWebhook(){
+    const payload = {
+      variant: VARIANT,
+      participant_id: participantId,
+      start_time_local: sessionStartLocal,
+      local_time: new Date().toLocaleString(),
+      summary: { trials: trial, false_starts: falseStarts, lapses },
+      rows: results
+    };
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
     });
   }
 
-  async function sendEmailWithAttachment(){
-    const json = buildJSON();
-    const blob = new Blob([json], {type: 'application/json;charset=utf-8;'});
-    const base64 = await blobToBase64(blob);
-
-    const safeId = participantId.replace(/[^a-zA-Z0-9_-]/g,'_') || 'PID';
-    const localStamp = new Date().toLocaleString(); // human local time for subject
-    const subject = `PVT_${safeId}_${localStamp}`;
-    const filename = `pvt_${safeId}_${localStamp.replace(/[\\/:]/g,'-').replace(/\s+/g,'_')}.json`;
-
-    const params = {
-      to_email: 'shanghavi@wisc.edu',
-      subject,
-      file_filename: filename,
-      file_content: base64
-    };
-
-    // Template must have Variable Attachment with param file_content and content type application/json
-    return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, params);
-  }
-
   startBtn.addEventListener('click', start);
+  // Extra bindings to ensure Start works across browsers/devices
+  startBtn.addEventListener('pointerup', start);
+  startBtn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') start(); });
   dot.addEventListener('pointerdown', recordResponse);
-  document.addEventListener('pointerdown', onBackgroundTap, { passive: false, capture: true });
 })();
 </script>
 </body>
